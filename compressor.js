@@ -123,7 +123,7 @@ async function compressTextFile(file) {
  * @param {number} maxDim maximum bound constraint
  * @returns {Promise<object|null>} Compressed bytes, new width, and height or null
  */
-async function compressPdfImageBytes(bytes, quality, maxDim) {
+async function compressPdfImageBytes(bytes, quality) {
   return new Promise((resolve) => {
     const blob = new Blob([bytes], { type: 'image/jpeg' });
     const url = URL.createObjectURL(blob);
@@ -131,18 +131,8 @@ async function compressPdfImageBytes(bytes, quality, maxDim) {
     img.onload = () => {
       URL.revokeObjectURL(url);
       const canvas = document.createElement('canvas');
-      let w = img.width;
-      let h = img.height;
-      
-      if (w > maxDim || h > maxDim) {
-        if (w > h) {
-          h = Math.round((h * maxDim) / w);
-          w = maxDim;
-        } else {
-          w = Math.round((w * maxDim) / h);
-          h = maxDim;
-        }
-      }
+      const w = img.width;
+      const h = img.height;
       
       canvas.width = w;
       canvas.height = h;
@@ -187,19 +177,16 @@ async function compressPdfImages(pdfDoc, qualitySetting) {
   const context = pdfDoc.context;
   const indirectObjects = context.enumerateIndirectObjects();
   
-  // Set up PDF-specific quality and dimensions limits
+  // Set up PDF-specific quality limits (no dimension resizing to preserve dimensions)
   const compressionConfig = {
     low: {
-      imageQuality: 0.85,
-      maxImageDim: 1000
+      imageQuality: 0.90
     },
     medium: {
-      imageQuality: 0.55,
-      maxImageDim: 800
+      imageQuality: 0.75
     },
     high: {
-      imageQuality: 0.25,
-      maxImageDim: 500
+      imageQuality: 0.55
     }
   };
   
@@ -232,14 +219,14 @@ async function compressPdfImages(pdfDoc, qualitySetting) {
         if (isDCT) {
           const bytes = pdfObject.contents;
           if (bytes && bytes.length > 0) {
-            const promise = compressPdfImageBytes(bytes, currentConfig.imageQuality, currentConfig.maxImageDim).then(res => {
+            const promise = compressPdfImageBytes(bytes, currentConfig.imageQuality).then(res => {
               if (res && res.bytes && res.bytes.length < bytes.length) {
                 pdfObject.contents = res.bytes;
                 // Update length, width, and height dictionary keys
                 dict.set(PDFLib.PDFName.of('Length'), PDFLib.PDFNumber.of(res.bytes.length));
                 dict.set(PDFLib.PDFName.of('Width'), PDFLib.PDFNumber.of(res.width));
                 dict.set(PDFLib.PDFName.of('Height'), PDFLib.PDFNumber.of(res.height));
-                console.log(`Compressed PDF image object ${ref.tag}: ${bytes.length} -> ${res.bytes.length} bytes (Resized to ${res.width}x${res.height})`);
+                console.log(`Compressed PDF image object ${ref.tag}: ${bytes.length} -> ${res.bytes.length} bytes`);
               }
             }).catch(err => {
               console.warn(`Could not compress PDF image stream:`, err);
@@ -267,25 +254,22 @@ async function compressDocxImages(fileBytes, qualitySetting) {
   const mediaFolder = zip.folder("word/media");
   if (!mediaFolder) return zip;
   
-  // Set up Word-specific qualities and bounds
+  // Set up Word-specific qualities (no dimension resizing to preserve quality)
   const compressionConfig = {
     low: {
-      imageQuality: 0.85,
-      pngQuality: 0.9,
-      maxImageDim: 1000,
-      maxSizeMB: 0.8
+      imageQuality: 0.90,
+      pngQuality: 0.92,
+      maxSizeMB: 100
     },
     medium: {
-      imageQuality: 0.55,
-      pngQuality: 0.7,
-      maxImageDim: 800,
-      maxSizeMB: 0.4
+      imageQuality: 0.75,
+      pngQuality: 0.80,
+      maxSizeMB: 100
     },
     high: {
-      imageQuality: 0.25,
-      pngQuality: 0.4,
-      maxImageDim: 500,
-      maxSizeMB: 0.15
+      imageQuality: 0.55,
+      pngQuality: 0.60,
+      maxSizeMB: 100
     }
   };
   
@@ -314,7 +298,6 @@ async function compressDocxImages(fileBytes, qualitySetting) {
         
         const imgOptions = {
           maxSizeMB: currentConfig.maxSizeMB,
-          maxWidthOrHeight: currentConfig.maxImageDim,
           useWebWorker: typeof Worker !== 'undefined',
           fileType: isPngTransparent ? 'image/png' : 'image/jpeg',
           initialQuality: isPngTransparent ? currentConfig.pngQuality : currentConfig.imageQuality
@@ -360,25 +343,22 @@ export async function compressFile(file, options = {}) {
   // Compression levels configuration for general images and repacked folders
   const compressionConfig = {
     low: {
-      imageQuality: 0.85,
-      pngQuality: 0.9,
+      imageQuality: 0.90,
+      pngQuality: 0.92,
       zipLevel: 3,
-      maxImageDim: 1000,
-      maxSizeMB: 0.8
+      maxSizeMB: 100
     },
     medium: {
-      imageQuality: 0.55,
-      pngQuality: 0.7,
+      imageQuality: 0.75,
+      pngQuality: 0.80,
       zipLevel: 6,
-      maxImageDim: 800,
-      maxSizeMB: 0.4
+      maxSizeMB: 100
     },
     high: {
-      imageQuality: 0.25,
-      pngQuality: 0.4,
+      imageQuality: 0.55,
+      pngQuality: 0.60,
       zipLevel: 9,
-      maxImageDim: 500,
-      maxSizeMB: 0.15
+      maxSizeMB: 100
     }
   };
   
@@ -400,7 +380,6 @@ export async function compressFile(file, options = {}) {
 
         const imgOptions = {
           maxSizeMB: currentConfig.maxSizeMB,
-          maxWidthOrHeight: currentConfig.maxImageDim,
           useWebWorker: typeof Worker !== 'undefined',
           fileType: isPngTransparent ? 'image/png' : 'image/jpeg',
           initialQuality: isPngTransparent ? currentConfig.pngQuality : currentConfig.imageQuality,
