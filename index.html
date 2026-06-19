@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShrinkIt — Bulk File Compressor</title>
+  <meta name="description" content="Compress images, PDFs, Word docs, and more — all at once. Free, private, browser-based.">
+  
+  <!-- Inline SVG Favicon (Purple downward pointing compress arrow) -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23534AB7' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M19 12l-7 7-7-7'/%3E%3C/svg%3E">
+  
+  <!-- Tabler Icons CSS (Outlined style) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="index.css">
+  
+  <!-- Compression Libraries CDNs -->
+  <!-- JSZip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- pdf-lib -->
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <!-- browser-image-compression -->
+  <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-logo-group">
+        <div class="app-logo" aria-hidden="true">
+          <i class="ti ti-download"></i>
+        </div>
+        <div class="header-text">
+          <h1>ShrinkIt</h1>
+          <p class="tagline">Compress anything, all at once</p>
+        </div>
+      </div>
+      <button id="clear-all-btn" class="btn btn-ghost" aria-label="Clear all uploaded files">Clear all</button>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="app-main">
+      <!-- Customizable Compression Level Radio Buttons Section -->
+      <section class="controls-section" aria-label="Compression settings">
+        <div class="control-group">
+          <span class="control-label">Compression level</span>
+          <div class="radio-group-container" role="radiogroup" aria-label="Select compression level">
+            <label class="radio-label">
+              <input type="radio" name="compression-level" value="low" class="visually-hidden">
+              <span class="radio-custom">Low</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="compression-level" value="medium" class="visually-hidden" checked>
+              <span class="radio-custom">Medium</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="compression-level" value="high" class="visually-hidden">
+              <span class="radio-custom">High</span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Upload Zone -->
+      <section class="upload-section" aria-label="File upload area">
+        <div id="dropzone" class="upload-zone" tabindex="0" role="button" aria-haspopup="true" aria-live="polite">
+          <div class="upload-icon-container">
+            <i class="ti ti-cloud-upload" aria-hidden="true"></i>
+          </div>
+          <h2 class="upload-title">Drop your files here or click to browse</h2>
+          <p class="upload-subtitle">Mix any file types — images, PDFs, Word docs, and more</p>
+          
+          <div class="supported-badges">
+            <span class="badge">JPG / PNG / WebP</span>
+            <span class="badge">PDF</span>
+            <span class="badge">DOCX / PPTX / XLSX</span>
+            <span class="badge">SVG</span>
+            <span class="badge">GIF</span>
+          </div>
+          
+          <!-- Hidden Native File Input -->
+          <input type="file" id="file-input" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.bmp,.pdf,.docx,.pptx,.xlsx,.svg,.txt,.csv,.json,.xml" class="visually-hidden">
+        </div>
+      </section>
+
+      <!-- Compatibility Banner (Hidden by default) -->
+      <div id="compat-banner" class="compat-banner hidden" role="alert">
+        <i class="ti ti-alert-circle" aria-hidden="true"></i>
+        <span>Running in compatibility mode — the page may be briefly unresponsive during compression</span>
+      </div>
+
+      <!-- File Count and Status label -->
+      <div id="grid-status-header" class="grid-status-header hidden"></div>
+
+      <!-- File Grid -->
+      <section class="grid-section" aria-label="Uploaded files list">
+        <div id="file-grid" class="file-grid" aria-live="polite">
+          <!-- Dynamically populated file cards -->
+        </div>
+        
+        <!-- Empty Grid State -->
+        <div id="empty-state" class="empty-state">
+          <i class="ti ti-files" aria-hidden="true"></i>
+          <p>No files uploaded yet. Drag and drop or browse to get started.</p>
+        </div>
+      </section>
+
+      <!-- Summary Stats Bar with Labeled Download Button -->
+      <section id="stats-section" class="stats-section hidden" aria-label="Compression summary statistics">
+        <div class="stats-bar-wrapper">
+          <div class="stats-bar">
+            <div class="stat-block">
+              <span class="stat-value" id="stat-original-total">0 KB</span>
+              <span class="stat-label">Original total</span>
+            </div>
+            
+            <div class="stat-divider"></div>
+            
+            <div class="stat-block">
+              <span class="stat-value" id="stat-compressed-total">0 KB</span>
+              <span class="stat-label">Compressed total</span>
+            </div>
+            
+            <!-- Labeled Download ZIP Button -->
+            <button id="download-zip-btn" class="stats-download-btn" aria-label="Download ZIP containing all compressed files" disabled aria-disabled="true">
+              <i class="ti ti-arrow-down" aria-hidden="true"></i>
+              <span class="btn-label">Download ZIP</span>
+            </button>
+            
+            <div class="stat-divider"></div>
+            
+            <div class="stat-block">
+              <span class="stat-value text-purple" id="stat-space-saved">0 KB</span>
+              <span class="stat-label">Space saved</span>
+            </div>
+            
+            <div class="stat-divider"></div>
+            
+            <div class="stat-block">
+              <span class="stat-value text-green" id="stat-avg-reduction">0%</span>
+              <span class="stat-label">Avg reduction</span>
+            </div>
+          </div>
+          
+          <p id="download-caption" class="download-caption">Upload files to begin compression</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Application Logic Scripts -->
+  <script type="module" src="compressor.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
